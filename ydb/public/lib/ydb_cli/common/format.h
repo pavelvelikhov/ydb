@@ -98,6 +98,7 @@ private:
     void PrintPrettyTable(const NJson::TJsonValue& plan);
     void PrintPrettyTableImpl(const NJson::TJsonValue& plan, TString& offset, TPrettyTable& table);
     void PrintJson(const TString& plan);
+    void PrintSimplifyJson(const NJson::TJsonValue& plan);
     TString JsonToString(const NJson::TJsonValue& jsonValue);
 
     void SplitPlanInTree(NJson::TJsonValue& plan);

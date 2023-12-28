@@ -38,6 +38,9 @@ namespace {
                                            "Every row is a separate json on a separate line." },
         { EOutputFormat::JsonBase64, "Output in json format, binary strings are encoded with base64. "
                                      "Every row is a separate json on a separate line." },
+        { EOutputFormat::JsonBase64Simplify, "Output in json format, binary strings are encoded with base64. "
+                                     "Every row is a separate json on a separate line. " 
+                                     "Output only basic information about plan." },
         { EOutputFormat::JsonBase64Array, "Output in json format, binary strings are encoded with base64. "
                                            "Every resultset is a json array of rows. "
                                            "Every row is a separate json on a separate line." },
@@ -232,6 +235,7 @@ void TCommandWithFormat::ParseMessagingFormats() {
 void TQueryPlanPrinter::Print(const TString& plan) {
     switch (Format) {
         case EOutputFormat::Default:
+        case EOutputFormat::JsonBase64Simplify:
         case EOutputFormat::Pretty:
         case EOutputFormat::PrettyTable: {
             NJson::TJsonValue planJson;
@@ -250,6 +254,8 @@ void TQueryPlanPrinter::Print(const TString& plan) {
 
                     if (Format == EOutputFormat::PrettyTable) {
                         PrintPrettyTable(query);
+                    } else if (Format == EOutputFormat::JsonBase64Simplify) {
+                        PrintSimplifyJson(query);
                     } else{
                         PrintPretty(query);
                     }
@@ -257,6 +263,8 @@ void TQueryPlanPrinter::Print(const TString& plan) {
             } else {
                 if (Format == EOutputFormat::PrettyTable) {
                     PrintPrettyTable(planJson);
+                } else if (Format == EOutputFormat::JsonBase64Simplify) {
+                    PrintSimplifyJson(planJson);
                 } else {
                     PrintPretty(planJson);
                 }
@@ -357,6 +365,17 @@ void TQueryPlanPrinter::PrintPrettyImpl(const NJson::TJsonValue& plan, TVector<T
             PrintPrettyImpl(subplan, offsets);
             offsets.pop_back();
         }
+    }
+}
+
+void TQueryPlanPrinter::PrintSimplifyJson(const NJson::TJsonValue& plan) {
+    if (plan.GetMapSafe().contains("Plan")) {
+        auto queryPlan = plan.GetMapSafe().at("Plan");
+        SimplifyQueryPlan(queryPlan);
+
+        Output << NJson::PrettifyJson(JsonToString(queryPlan), false) << Endl;
+    } else { /* old format plan */
+        PrintJson(plan.GetStringRobust());
     }
 }
 
