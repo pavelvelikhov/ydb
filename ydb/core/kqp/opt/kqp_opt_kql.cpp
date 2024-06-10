@@ -90,11 +90,11 @@ bool HasIndexesToWrite(const TKikimrTableDescription& tableData) {
     return hasIndexesToWrite;
 }
 
-TExprBase BuildReadTable(const TCoAtomList& columns, TPositionHandle pos, const TKikimrTableDescription& tableData, bool forcePrimary,
-    TExprContext& ctx)
+TExprBase BuildReadTable(const TCoAtomList& columns, TPositionHandle pos, const TKikimrTableDescription& tableData, bool forcePrimary, 
+    TMaybe<TString> statHints, TExprContext& ctx)
 {
     TExprNode::TPtr readTable;
-    const auto& tableMeta = BuildTableMeta(tableData, pos, ctx);
+    const auto& tableMeta = BuildTableMeta(tableData, pos, statHints, ctx);
 
     TKqpReadTableSettings settings;
     settings.ForcePrimary = forcePrimary;
@@ -114,11 +114,11 @@ TExprBase BuildReadTable(const TCoAtomList& columns, TPositionHandle pos, const 
 }
 
 TExprBase BuildReadTable(const TKiReadTable& read, const TKikimrTableDescription& tableData, bool forcePrimary,
-    bool withSystemColumns, TExprContext& ctx)
+    bool withSystemColumns, TMaybe<TString> statHints, TExprContext& ctx)
 {
     const auto& columns = read.GetSelectColumns(ctx, tableData, withSystemColumns);
 
-    auto readNode = BuildReadTable(columns, read.Pos(), tableData, forcePrimary, ctx);
+    auto readNode = BuildReadTable(columns, read.Pos(), tableData, forcePrimary, statHints, ctx);
 
     return readNode;
 }
@@ -389,7 +389,7 @@ TExprBase BuildRowsToDelete(const TKikimrTableDescription& tableData, bool withS
     const auto tableMeta = BuildTableMeta(tableData, pos, ctx);
     const auto tableColumns = BuildColumnsList(tableData, pos, ctx, withSystemColumns, true /*ignoreWriteOnlyColumns*/);
 
-    const auto allRows = BuildReadTable(tableColumns, pos, tableData, false, ctx);
+    const auto allRows = BuildReadTable(tableColumns, pos, tableData, false, TMaybe<TString>(), ctx);
 
     return Build<TCoFilter>(ctx, pos)
         .Input(allRows)
@@ -462,7 +462,7 @@ TExprBase BuildDeleteTableWithIndex(const TKiDeleteTable& del, const TKikimrTabl
 TExprBase BuildRowsToUpdate(const TKikimrTableDescription& tableData, bool withSystemColumns, const TCoLambda& filter,
     const TPositionHandle pos, TExprContext& ctx)
 {
-    auto kqlReadTable = BuildReadTable(BuildColumnsList(tableData, pos, ctx, withSystemColumns, true /*ignoreWriteOnlyColumns*/), pos, tableData, false, ctx);
+    auto kqlReadTable = BuildReadTable(BuildColumnsList(tableData, pos, ctx, withSystemColumns, true /*ignoreWriteOnlyColumns*/), pos, tableData, false, "", ctx);
 
     return Build<TCoFilter>(ctx, pos)
         .Input(kqlReadTable)
@@ -727,7 +727,7 @@ TExprNode::TPtr HandleReadTable(const TKiReadTable& read, TExprContext& ctx, con
         return BuildReadTableIndex(read, tableData, indexName, withSystemColumns, ctx).Ptr();
     }
 
-    return BuildReadTable(read, tableData, view && view->PrimaryFlag, withSystemColumns, ctx).Ptr();
+    return BuildReadTable(read, tableData, view && view->PrimaryFlag, withSystemColumns, key.GetStatHints(), ctx).Ptr();
 }
 
 TExprBase WriteTableSimple(const TKiWriteTable& write, const TCoAtomList& inputColumns,
