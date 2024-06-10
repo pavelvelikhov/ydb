@@ -695,7 +695,53 @@ std::pair<TString, TViewDescription> TableKeyImpl(const std::pair<bool, TString>
     return std::make_pair(nameWithAt.second, view);
 }
 
-std::pair<TString, TViewDescription> TableKeyImpl(const TRule_table_key& node, TTranslation& ctx, bool hasAt) {
+std::tuple<TString, TViewDescription, TVector<NSQLTranslation::TSQLHint>> TableKeyImpl(const TRule_table_key& node, TTranslation& ctx, bool hasAt, TContext& tctx) {
+    auto id = node.GetRule_id_table_or_type1();
+    TVector<NSQLTranslation::TSQLHint> hints;
+    TPosition pos;
+
+    switch (id.Alt_case()) {
+        case TRule_id_table_or_type::kAltIdTableOrType1:
+            {
+            auto an_id_table = id.GetAlt_id_table_or_type1().GetRule_an_id_table1();
+            switch(an_id_table.Alt_case()) {
+                case TRule_an_id_table::kAltAnIdTable1:
+                    {
+                        auto id_table = an_id_table.GetAlt_an_id_table1().GetRule_id_table1();
+                        switch(id_table.Alt_case()) {
+                            case TRule_id_table::kAltIdTable1:
+                                pos = tctx.TokenPosition(id_table.GetAlt_id_table1().GetRule_identifier1().GetToken1());
+                                /*
+                                switch(identifier.Alt_case()) {
+                                    case TRule_identifier::kAltIdentifier1:
+                                        pos = tctx.TokenPosition(identifier.GetAlt_identifier1().GetToken1());
+                                        break;
+                                    case TRule_identifier::kAltIdentifier2:
+                                        pos = tctx.TokenPosition(identifier.GetAlt_identifier2().GetToken1());
+                                        break;
+                                    default:
+                                        break;
+                                }
+                                */
+                               break;
+                            default:
+                                break;
+                        }
+                    }
+                break;
+                default:
+                    break;
+            }
+        }
+        break;
+        default:
+            break;
+    }
+
+    if (pos) {
+        hints = tctx.PullHintForToken(pos);
+    }
+
     auto name(Id(node.GetRule_id_table_or_type1(), ctx));
     TViewDescription view;
     if (node.HasBlock2()) {
@@ -703,7 +749,8 @@ std::pair<TString, TViewDescription> TableKeyImpl(const TRule_table_key& node, T
         ctx.Context().IncrementMonCounter("sql_features", "View");
     }
 
-    return TableKeyImpl(std::make_pair(hasAt, name), view, ctx);
+    auto pair = TableKeyImpl(std::make_pair(hasAt, name), view, ctx);
+    return make_tuple(pair.first, pair.second, hints);
 }
 
 /// \return optional prefix
@@ -998,7 +1045,7 @@ bool TSqlTranslation::ClusterExpr(const TRule_cluster_expr& node, bool allowWild
 }
 
 
-bool TSqlTranslation::ApplyTableBinding(const TString& binding, TTableRef& tr, TTableHints& hints) {
+bool TSqlTranslation::ApplyTableBinding(const TString& binding, TTableRef& tr, TTableHints& hints, const TVector<NSQLTranslation::TSQLHint>& statHints) {
     NSQLTranslation::TBindingInfo bindingInfo;
     if (const auto& error = ExtractBindingInfo(Context().Settings, binding, bindingInfo)) {
         Ctx.Error() << error;
@@ -1026,10 +1073,16 @@ bool TSqlTranslation::ApplyTableBinding(const TString& binding, TTableRef& tr, T
     tr.Cluster = TDeferredAtom(Ctx.Pos(), bindingInfo.Cluster);
 
     const TString view = "";
-    tr.Keys = BuildTableKey(Ctx.Pos(), tr.Service, tr.Cluster, TDeferredAtom(Ctx.Pos(), bindingInfo.Path), {view});
+    tr.Keys = BuildTableKey(Ctx.Pos(), tr.Service, tr.Cluster, TDeferredAtom(Ctx.Pos(), bindingInfo.Path), {view}, statHints);
 
     return true;
 }
+
+bool TSqlTranslation::ApplyTableBinding(const TString& binding, TTableRef& tr, TTableHints& hints) {
+    TVector<NSQLTranslation::TSQLHint> emptyHints;
+    return ApplyTableBinding(binding, tr, hints, emptyHints);
+}
+
 
 bool TSqlTranslation::TableRefImpl(const TRule_table_ref& node, TTableRef& result, bool unorderedSubquery) {
     // table_ref:
@@ -1074,21 +1127,21 @@ bool TSqlTranslation::TableRefImpl(const TRule_table_ref& node, TTableRef& resul
                 return false;
             }
 
-            auto pair = TableKeyImpl(block.GetAlt1().GetRule_table_key1(), *this, hasAt);
+            auto tuple = TableKeyImpl(block.GetAlt1().GetRule_table_key1(), *this, hasAt, Ctx);
             if (isBinding) {
-                TString binding = pair.first;
-                auto view = pair.second;
+                TString binding = std::get<0>(tuple);
+                auto view = std::get<1>(tuple);
                 if (!view.ViewName.empty()) {
                     YQL_ENSURE(view != TViewDescription{"@"});
                     Ctx.Error() << "VIEW is not supported for table bindings";
                     return false;
                 }
 
-                if (!ApplyTableBinding(binding, tr, tableHints)) {
+                if (!ApplyTableBinding(binding, tr, tableHints, std::get<2>(tuple))) {
                     return false;
                 }
             } else {
-                tr.Keys = BuildTableKey(pos, service, cluster, TDeferredAtom(pos, pair.first), pair.second);
+                tr.Keys = BuildTableKey(pos, service, cluster, TDeferredAtom(pos, std::get<0>(tuple)), std::get<1>(tuple), std::get<2>(tuple));
             }
             break;
         }

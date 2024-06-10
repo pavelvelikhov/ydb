@@ -25,13 +25,16 @@ void InferStatisticsForReadTable(const TExprNode::TPtr& input, TTypeAnnotationCo
     int nAttrs = 0;
 
     const TExprNode* path;
+    const TExprNode* statsAtom;
 
     if (auto readTable = inputNode.Maybe<TKqlReadTableBase>()) {
         path = readTable.Cast().Table().Path().Raw();
         nAttrs = readTable.Cast().Columns().Size();
+        statsAtom = readTable.Cast().Table().StatHints().Raw();
     } else if (auto readRanges = inputNode.Maybe<TKqlReadTableRangesBase>()) {
         path = readRanges.Cast().Table().Path().Raw();
         nAttrs = readRanges.Cast().Columns().Size();
+        statsAtom = readRanges.Cast().Table().StatHints().Raw();
     } else {
         Y_ENSURE(false, "Invalid node type for InferStatisticsForReadTable");
     }
@@ -41,9 +44,13 @@ void InferStatisticsForReadTable(const TExprNode::TPtr& input, TTypeAnnotationCo
     nRows = tableData.Metadata->RecordsCount;
     double byteSize = tableData.Metadata->DataSize * (nAttrs / (double)totalAttrs);
 
-    YQL_CLOG(TRACE, CoreDq) << "Infer statistics for read table, nrows:" << nRows << ", nattrs: " << nAttrs;
+    auto stats = std::make_shared<TOptimizerStatistics>(EStatisticsType::BaseTable, nRows, nAttrs, byteSize, 0.0, tableData.Metadata->KeyColumnNames);
+    if (statsAtom) {
+        stats = UpdateStatsWithHints(*stats, TString(statsAtom->Content()));
+    }
+    YQL_CLOG(TRACE, CoreDq) << "Infer statistics for read table, nrows:" << stats->Nrows << ", nattrs: " << stats->Ncols;
 
-    typeCtx->SetStats(input.Get(), std::make_shared<TOptimizerStatistics>(EStatisticsType::BaseTable, nRows, nAttrs, byteSize, 0.0, tableData.Metadata->KeyColumnNames));
+    typeCtx->SetStats(input.Get(),stats);
 }
 
 /**
@@ -55,14 +62,21 @@ void InferStatisticsForKqpTable(const TExprNode::TPtr& input, TTypeAnnotationCon
     auto inputNode = TExprBase(input);
     auto readTable = inputNode.Cast<TKqpTable>();
     auto path = readTable.Path();
+    auto statsAtom = readTable.StatHints();
 
     const auto& tableData = kqpCtx.Tables->ExistingTable(kqpCtx.Cluster, path.Value());
     double nRows = tableData.Metadata->RecordsCount;
     double byteSize = tableData.Metadata->DataSize;
     int nAttrs = tableData.Metadata->Columns.size();
-    YQL_CLOG(TRACE, CoreDq) << "Infer statistics for table: " << path.Value() << ", nrows: " << nRows << ", nattrs: " << nAttrs << ", nKeyColumns: " << tableData.Metadata->KeyColumnNames.size();
 
-    typeCtx->SetStats(input.Get(), std::make_shared<TOptimizerStatistics>(EStatisticsType::BaseTable, nRows, nAttrs, byteSize, 0.0, tableData.Metadata->KeyColumnNames));
+    auto stats = std::make_shared<TOptimizerStatistics>(EStatisticsType::BaseTable, nRows, nAttrs, byteSize, 0.0, tableData.Metadata->KeyColumnNames);
+    if (statsAtom) {
+        stats = UpdateStatsWithHints(*stats, statsAtom.Cast().StringValue());
+    }
+
+    YQL_CLOG(TRACE, CoreDq) << "Infer statistics for table: " << path.Value() << ", nrows: " << stats->Nrows << ", nattrs: " << stats->Ncols << ", nKeyColumns: " << tableData.Metadata->KeyColumnNames.size();
+
+    typeCtx->SetStats(input.Get(), stats);
 }
 
 /**

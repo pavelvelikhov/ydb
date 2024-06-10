@@ -19,6 +19,13 @@ struct IProviderStatistics {
     virtual ~IProviderStatistics() {}
 };
 
+struct TColumnStatistics {
+    std::optional<double> NuniqueVals;
+    std::optional<double> HyperLogLog;
+
+    TColumnStatistics() {}
+};
+
 /**
  * Optimizer Statistics struct records per-table and per-column statistics
  * for the current operator in the plan. Currently, only Nrows and Ncols are
@@ -34,6 +41,7 @@ struct TOptimizerStatistics {
     double Cost = 0;
     double Selectivity = 1.0;
     const TVector<TString>& KeyColumns;
+    std::shared_ptr<THashMap<TString,TColumnStatistics>> ColumnStatistics;
     std::unique_ptr<const IProviderStatistics> Specific;
 
     TOptimizerStatistics(TOptimizerStatistics&&) = default;
@@ -55,4 +63,7 @@ struct TOptimizerStatistics {
 
     static const TVector<TString>& EmptyColumns;
 };
+
+std::shared_ptr<TOptimizerStatistics> UpdateStatsWithHints(const TOptimizerStatistics& s, const TString& statHints);
+
 }

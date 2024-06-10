@@ -470,6 +470,14 @@ bool TKikimrKey::Extract(const TExprNode& key) {
                 }
 
                 View = TViewDescription{"", true};
+            } else if (tag->Content() == TStringBuf("stats")) {
+                auto hintNode = key.Child(i)->Child(1);
+
+                if (!hintNode->IsCallable("String")) {
+                    Ctx.AddError(TIssue(Ctx.GetPosition(hintNode->Pos()), "Expected String"));
+                    return false;
+                }
+                StatHints = TString(hintNode->Child(0)->Content());
             } else {
                 Ctx.AddError(TIssue(Ctx.GetPosition(tag->Pos()), TStringBuilder() << "Unexpected tag for kikimr key child: " << tag->Content()));
                 return false;

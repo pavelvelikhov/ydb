@@ -3,6 +3,10 @@
 #include "match_recognize.h"
 #include <library/cpp/containers/sorted_vector/sorted_vector.h>
 
+namespace NSQLTranslation {
+    struct TSQLHint;
+}
+
 namespace NSQLTranslationV1 {
     using TColumnsSets = NSorted::TSimpleSet<NSorted::TSimpleSet<TString>>;
 
@@ -298,6 +302,7 @@ namespace NSQLTranslationV1 {
 
     // Implemented in query.cpp
     TNodePtr BuildTableKey(TPosition pos, const TString& service, const TDeferredAtom& cluster, const TDeferredAtom& name, const TViewDescription& view);
+    TNodePtr BuildTableKey(TPosition pos, const TString& service, const TDeferredAtom& cluster, const TDeferredAtom& name, const TViewDescription& view, const TVector<NSQLTranslation::TSQLHint>& statHints);
     TNodePtr BuildTableKeys(TPosition pos, const TString& service, const TDeferredAtom& cluster, const TString& func, const TVector<TTableArg>& args);
     TNodePtr BuildTopicKey(TPosition pos, const TDeferredAtom& cluster, const TDeferredAtom& name);
     TNodePtr BuildInputOptions(TPosition pos, const TTableHints& hints);

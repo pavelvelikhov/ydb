@@ -41,9 +41,13 @@ NYql::NNodes::TExprBase ProjectColumns(const NYql::NNodes::TExprBase& input, con
     NYql::TExprContext& ctx);
 
 NYql::NNodes::TKqpTable BuildTableMeta(const NYql::TKikimrTableDescription& tableDesc,
+    const NYql::TPositionHandle& pos, TMaybe<TString> statHints, NYql::TExprContext& ctx);
+NYql::NNodes::TKqpTable BuildTableMeta(const NYql::TKikimrTableDescription& tableDesc,
     const NYql::TPositionHandle& pos, NYql::TExprContext& ctx);
 NYql::NNodes::TKqpTable BuildTableMeta(const NYql::TKikimrTableMetadata& tableMeta,
     const NYql::TPositionHandle& pos, NYql::TExprContext& ctx);
+ NYql::NNodes::TKqpTable BuildTableMeta(const NYql::TKikimrTableMetadata& tableMeta,
+    const NYql::TPositionHandle& pos, TMaybe<TString> statHints, NYql::TExprContext& ctx);
 
 TIntrusivePtr<NYql::TKikimrTableMetadata> GetIndexMetadata(const NYql::NNodes::TKqlReadTableIndex& index,
     const NYql::TKikimrTablesData& tables, TStringBuf cluster);

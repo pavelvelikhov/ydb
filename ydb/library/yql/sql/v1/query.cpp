@@ -26,13 +26,14 @@ bool ValidateView(TPosition pos, TContext& ctx, TStringBuf service, TViewDescrip
 class TUniqueTableKey: public ITableKeys {
 public:
     TUniqueTableKey(TPosition pos, const TString& service, const TDeferredAtom& cluster,
-        const TDeferredAtom& name, const TViewDescription& view)
+        const TDeferredAtom& name, const TViewDescription& view, const TVector<NSQLTranslation::TSQLHint>& statHints)
         : ITableKeys(pos)
         , Service(service)
         , Cluster(cluster)
         , Name(name)
         , View(view)
         , Full(name.GetRepr())
+        , StatHints(statHints)
     {
         if (!View.ViewName.empty()) {
             Full += ":" + View.ViewName;
@@ -78,6 +79,11 @@ public:
             return nullptr;
         }
         auto key = Y("Key", Q(Y(Q(tableScheme ? "tablescheme" : "table"), Y("String", path))));
+        if (StatHints.size()) {
+            key = Y("Key", Q(Y(Q(tableScheme ? "tablescheme" : "table"), Y("String", path))),
+                            Q(Y(Q("stats"), Y("String", BuildQuotedAtom(ctx.Pos(), StatHints[0].Values[0], TNodeFlags::MultilineContent)))));
+        }
+
         key = AddView(key, View);
         if (!ValidateView(GetPos(), ctx, Service, View)) {
             return nullptr;
@@ -99,11 +105,18 @@ private:
     TDeferredAtom Name;
     TViewDescription View;
     TString Full;
+    TVector<NSQLTranslation::TSQLHint> StatHints;
 };
 
 TNodePtr BuildTableKey(TPosition pos, const TString& service, const TDeferredAtom& cluster,
     const TDeferredAtom& name, const TViewDescription& view) {
-    return new TUniqueTableKey(pos, service, cluster, name, view);
+    TVector<NSQLTranslation::TSQLHint> statHints;
+    return new TUniqueTableKey(pos, service, cluster, name, view, statHints);
+}
+
+TNodePtr BuildTableKey(TPosition pos, const TString& service, const TDeferredAtom& cluster,
+    const TDeferredAtom& name, const TViewDescription& view, const TVector<NSQLTranslation::TSQLHint>& statHints) {
+    return new TUniqueTableKey(pos, service, cluster, name, view, statHints);
 }
 
 class TTopicKey: public ITableKeys {

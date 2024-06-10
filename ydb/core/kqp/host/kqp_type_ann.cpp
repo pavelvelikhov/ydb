@@ -74,7 +74,7 @@ bool CheckKeyTuple(const TKqlKeyTuple& tuple, const TKikimrTableDescription& tab
 TStatus AnnotateTable(const TExprNode::TPtr& node, TExprContext& ctx, const TString& cluster,
     const TKikimrTablesData& tablesData)
 {
-    if (!EnsureArgsCount(*node, 4, ctx)) {
+    if (!EnsureMinMaxArgsCount(*node, 4, 5, ctx)) {
         return TStatus::Error;
     }
 

@@ -170,6 +170,10 @@ public:
         return *ObjectType;
     }
 
+    const TMaybe<TString>& GetStatHints() {
+        return StatHints;
+    }
+
     bool Extract(const TExprNode& key);
 
 private:
@@ -178,6 +182,7 @@ private:
     TString Target;
     TMaybe<TString> ObjectType;
     TMaybe<TViewDescription> View;
+    TMaybe<TString> StatHints;
 };
 
 struct TKiDataQueryBlockSettings {

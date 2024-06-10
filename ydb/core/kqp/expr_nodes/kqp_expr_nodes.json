@@ -38,7 +38,8 @@
                 {"Index": 0, "Name": "Path", "Type": "TCoAtom"},
                 {"Index": 1, "Name": "PathId", "Type": "TCoAtom"},
                 {"Index": 2, "Name": "SysView", "Type": "TCoAtom"},
-                {"Index": 3, "Name": "Version", "Type": "TCoAtom"}
+                {"Index": 3, "Name": "Version", "Type": "TCoAtom"},
+                {"Index": 4, "Name": "StatHints", "Type": "TCoAtom", "Optional": true}
             ]
         },
         {

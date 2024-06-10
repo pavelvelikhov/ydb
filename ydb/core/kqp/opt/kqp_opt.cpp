@@ -90,18 +90,38 @@ TExprBase ProjectColumns(const TExprBase& input, const THashSet<TStringBuf>& col
     return ProjectColumnsInternal(input, columnNames, ctx);
 }
 
+TKqpTable BuildTableMeta(const TKikimrTableMetadata& meta, const TPositionHandle& pos, TMaybe<TString> statHints, TExprContext& ctx) {
+    if (statHints.Defined()) {
+        auto hintsAtom = TCoAtom(ctx.NewAtom(pos, *statHints, TNodeFlags::MultilineContent));
+        return Build<TKqpTable>(ctx, pos)
+            .Path().Build(meta.Name)
+            .PathId().Build(meta.PathId.ToString())
+            .SysView().Build(meta.SysView)
+            .Version().Build(meta.SchemaVersion)
+            .StatHints(hintsAtom)
+            .Done();
+    } else {
+            return Build<TKqpTable>(ctx, pos)
+            .Path().Build(meta.Name)
+            .PathId().Build(meta.PathId.ToString())
+            .SysView().Build(meta.SysView)
+            .Version().Build(meta.SchemaVersion)
+            .Done();
+    }
+}
+
 TKqpTable BuildTableMeta(const TKikimrTableMetadata& meta, const TPositionHandle& pos, TExprContext& ctx) {
-    return Build<TKqpTable>(ctx, pos)
-        .Path().Build(meta.Name)
-        .PathId().Build(meta.PathId.ToString())
-        .SysView().Build(meta.SysView)
-        .Version().Build(meta.SchemaVersion)
-        .Done();
+    return BuildTableMeta(meta, pos, TMaybe<TString>(), ctx);
 }
 
 TKqpTable BuildTableMeta(const TKikimrTableDescription& tableDesc, const TPositionHandle& pos, TExprContext& ctx) {
     YQL_ENSURE(tableDesc.Metadata);
     return BuildTableMeta(*tableDesc.Metadata, pos, ctx);
+}
+
+TKqpTable BuildTableMeta(const TKikimrTableDescription& tableDesc, const TPositionHandle& pos, TMaybe<TString> statHints, TExprContext& ctx) {
+    YQL_ENSURE(tableDesc.Metadata);
+    return BuildTableMeta(*tableDesc.Metadata, pos, statHints, ctx);
 }
 
 bool IsBuiltEffect(const TExprBase& effect) {

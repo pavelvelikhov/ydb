@@ -159,6 +159,7 @@ protected:
     bool ClusterExpr(const TRule_cluster_expr& node, bool allowWildcard, TString& service, TDeferredAtom& cluster);
     bool ClusterExprOrBinding(const TRule_cluster_expr& node, TString& service, TDeferredAtom& cluster, bool& isBinding);
     bool ApplyTableBinding(const TString& binding, TTableRef& tr, TTableHints& hints);
+    bool ApplyTableBinding(const TString& binding, TTableRef& tr, TTableHints& hints, const TVector<NSQLTranslation::TSQLHint>& tableHints);
 
     TMaybe<TColumnSchema> ColumnSchemaImpl(const TRule_column_schema& node);
     bool CreateTableEntry(const TRule_create_table_entry& node, TCreateTableParameters& params, const bool isCreateTableAs);
