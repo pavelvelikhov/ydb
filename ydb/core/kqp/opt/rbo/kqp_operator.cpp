@@ -493,6 +493,18 @@ TVector<TInfoUnit> TOpMap::GetOutputIUs() {
     return res;
 }
 
+TVector<TInfoUnit> TOpMap::GetUsedIUs() {
+    TVector<TInfoUnit> result;
+
+    for (auto lambda : GetLambdas()) {
+        TVector<TInfoUnit> lambdaIUs;
+        GetAllMembers(lambda, lambdaIUs);
+        result.insert(result.begin(), lambdaIUs.begin(), lambdaIUs.end());
+    }
+
+    return result;
+}
+
 TVector<TExprNode::TPtr> TOpMap::GetLambdas() {
     TVector<TExprNode::TPtr> result;
     for (auto &[_,body] : MapElements) {
@@ -521,15 +533,6 @@ TVector<TInfoUnit> TOpMap::GetScalarSubplanIUs(TPlanProps& props) {
         }
     }
     return res;
-}
-
-bool TOpMap::HasRenames() const {
-    for (auto &[iu, body] : MapElements) {
-        if (std::holds_alternative<TInfoUnit>(body)) {
-            return true;
-        }
-    }
-    return false;
 }
 
 // Returns explicit renames as pairs of <to, from>
@@ -710,6 +713,12 @@ TVector<TInfoUnit> TOpFilter::GetFilterIUs(TPlanProps& props) const {
     return res;
 }
 
+TVector<TInfoUnit> TOpFilter::GetUsedIUs() {
+    TVector<TInfoUnit> res;
+    GetAllMembers(FilterLambda, res);
+    return res;
+}
+
 TVector<TInfoUnit> TOpFilter::GetScalarSubplanIUs(TPlanProps& props) {
     TVector<TInfoUnit> res;
     for (const auto& iu : GetFilterIUs(props)) {
@@ -807,6 +816,15 @@ TVector<TInfoUnit> TOpJoin::GetOutputIUs() {
     return res;
 }
 
+TVector<TInfoUnit> TOpJoin::GetUsedIUs() {
+    TVector<TInfoUnit> result;
+    for (auto & [leftKey, rightKey]: JoinKeys) {
+        result.push_back(leftKey);
+        result.push_back(rightKey);
+    }
+    return result;
+}
+
 void TOpJoin::RenameIUs(const THashMap<TInfoUnit, TInfoUnit, TInfoUnit::THashFunction> &renameMap, TExprContext &ctx, const THashSet<TInfoUnit, TInfoUnit::THashFunction> &stopList) {
     Y_UNUSED(ctx);
     Y_UNUSED(stopList);
@@ -887,7 +905,15 @@ TString TOpLimit::ToString(TExprContext& ctx) {
 TOpSort::TOpSort(std::shared_ptr<IOperator> input, TPositionHandle pos, TVector<TSortElement> sortElements, TExprNode::TPtr limitCond)
     : IUnaryOperator(EOperator::Sort, pos, input), SortElements(sortElements), LimitCond(limitCond) {}
 
-TVector<TInfoUnit> TOpSort::GetOutputIUs() { return GetInput()->GetOutputIUs(); }    
+TVector<TInfoUnit> TOpSort::GetOutputIUs() { return GetInput()->GetOutputIUs(); }
+
+TVector<TInfoUnit> TOpSort::GetUsedIUs() {
+    TVector<TInfoUnit> result;
+    for (auto el : SortElements) {
+        result.push_back(el.SortColumn);
+    }
+    return result;
+}
 
 void TOpSort::RenameIUs(const THashMap<TInfoUnit, TInfoUnit, TInfoUnit::THashFunction> &renameMap, TExprContext &ctx, const THashSet<TInfoUnit, TInfoUnit::THashFunction> &stopList) {
     Y_UNUSED(stopList);
@@ -949,6 +975,10 @@ TVector<TInfoUnit> TOpAggregate::GetOutputIUs() {
         outputIU.push_back(aggTraits.OriginalColName);
     }
     return outputIU;
+}
+
+TVector<TInfoUnit> TOpAggregate::GetUsedIUs() {
+    return GetOutputIUs();
 }
 
 void TOpAggregate::RenameIUs(const THashMap<TInfoUnit, TInfoUnit, TInfoUnit::THashFunction> &renameMap, TExprContext &ctx, const THashSet<TInfoUnit, TInfoUnit::THashFunction> &stopList) {
