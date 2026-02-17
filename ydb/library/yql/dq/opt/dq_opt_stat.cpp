@@ -186,6 +186,7 @@ namespace {
         return true;
     }
 
+    [[maybe_unused]]
     void PrintExtractedRanges(const TExprNode::TPtr& filterLambda, const TTypeAnnotationNode& rowType,
         TExprContext& ctx, TTypeAnnotationContext& typesCtx, const NKikimr::NMiniKQL::IFunctionRegistry& funcRegistry) {
 
@@ -717,6 +718,9 @@ void InferStatisticsForDqSource(const TExprNode::TPtr& input, TTypeAnnotationCon
  */
 void InferStatisticsForFlatMap(const TExprNode::TPtr& input, TTypeAnnotationContext* typeCtx, TExprContext& ctx, const NKikimr::NMiniKQL::IFunctionRegistry& funcRegistry) {
 
+    Y_UNUSED(ctx);
+    Y_UNUSED(funcRegistry);
+
     auto inputNode = TExprBase(input);
     auto flatmap = inputNode.Cast<TCoFlatMapBase>();
     auto flatmapInput = flatmap.Input();
@@ -731,11 +735,11 @@ void InferStatisticsForFlatMap(const TExprNode::TPtr& input, TTypeAnnotationCont
         // Currently we just set the number to 10% before we have statistics and parse
         // the predicate
 
-        auto inputType = flatmapInput.Ptr()->GetTypeAnn();
-        if (inputType->GetKind() == ETypeAnnotationKind::List) {
-            auto rowType = flatmapInput.Ptr()->GetTypeAnn()->Cast<TListExprType>()->GetItemType()->Cast<TStructExprType>();
-            PrintExtractedRanges(flatmap.Lambda().Ptr(), *rowType, ctx, *typeCtx, funcRegistry);
-        }
+        //auto inputType = flatmapInput.Ptr()->GetTypeAnn();
+        //if (inputType->GetKind() == ETypeAnnotationKind::List) {
+        //    auto rowType = flatmapInput.Ptr()->GetTypeAnn()->Cast<TListExprType>()->GetItemType()->Cast<TStructExprType>();
+        //    PrintExtractedRanges(flatmap.Lambda().Ptr(), *rowType, ctx, *typeCtx, funcRegistry);
+        //}
 
         double selectivity = TPredicateSelectivityComputer(inputStats).Compute(flatmap.Lambda().Body());
 
