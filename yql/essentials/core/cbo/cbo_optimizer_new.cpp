@@ -251,7 +251,7 @@ TOptimizerStatistics TBaseProviderContext::ComputeJoinStats(
 
     if (isRightPKJoin) {
         selectivity = leftStats.Selectivity * rightStats.Selectivity;
-        //selectivity = rightStats.Selectivity;
+        selectivity = std::pow(selectivity, 0.8);
 
         switch (joinKind) {
             case EJoinKind::LeftJoin:
@@ -294,7 +294,7 @@ TOptimizerStatistics TBaseProviderContext::ComputeJoinStats(
         }
     } else if (isLeftPKJoin) {
         selectivity = leftStats.Selectivity * rightStats.Selectivity;
-        //selectivity = leftStats.Selectivity;
+        selectivity = std::pow(selectivity, 0.8);
 
         switch (joinKind) {
             case EJoinKind::RightJoin:
