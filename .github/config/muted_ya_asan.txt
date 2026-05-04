@@ -172,6 +172,8 @@ ydb/core/kqp/ut/indexes/fulltext KqpFulltextIndexes.FullTextReadResultStatusRetr
 ydb/core/kqp/ut/indexes/fulltext KqpFulltextIndexes.FullTextReadResultStatusRetryL2+LimitRowsPerRequest
 ydb/core/kqp/ut/indexes/fulltext KqpFulltextIndexes.FulltextRelevanceL2Reads+LimitRowsPerRequest+InjectFail
 ydb/core/kqp/ut/indexes/fulltext KqpFulltextIndexes.FulltextRelevanceL2Reads+LimitRowsPerRequest-InjectFail
+ydb/core/kqp/ut/indexes/prefixed_vector KqpPrefixedVectorIndexes.PrefixedVectorIndexInsertNewPrefix-Nullable+Covered
+ydb/core/kqp/ut/indexes/prefixed_vector unittest.[*/*] chunk
 ydb/core/kqp/ut/join KqpJoinOrder.Chain65Nodes
 ydb/core/kqp/ut/join/index_lookup KqpJoin.StreamLookupJoinOverloadDeadlock
 ydb/core/kqp/ut/olap KqpOlapOptimizer.SpecialSliceToOneLayer
