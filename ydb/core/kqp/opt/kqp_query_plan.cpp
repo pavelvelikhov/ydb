@@ -3599,11 +3599,10 @@ TString AddExecStatsToTxPlan(const TString& txPlanJson, const NYql::NDqProto::TD
     NJsonWriter::TBuf txWriter;
     txWriter.WriteJsonValue(&root, true, PREC_NDIGITS, 17);
     auto resultPlan = txWriter.Str();
-    if (newRboEnabled) {
-        return AddExecStatsToNewRboPlan(resultPlan, stats);
-    }
-    else {
+    if (!newRboEnabled) {
         return AddSimplifiedPlan(resultPlan, true);
+    } else {
+        return resultPlan;
     }
 }
 
@@ -3616,7 +3615,7 @@ TString SerializeAnalyzePlan(const NKqpProto::TKqpStatsQuery& queryStats, bool n
     }
 
     if (newRboEnabled) {
-        return AddExecStatsToNewRboPlans(txPlans, queryStats, poolId);
+        return SerializeRBOAnalyzePlan(txPlans, queryStats, poolId);
     }
 
     NJsonWriter::TBuf writer;

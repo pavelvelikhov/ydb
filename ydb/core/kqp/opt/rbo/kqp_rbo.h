@@ -106,8 +106,8 @@ public:
  */
 TExprNode::TPtr ConvertToPhysical(TOpRoot& root, TRBOContext& ctx);
 
-TString AddExecStatsToNewRboPlan(const TString& txPlan, const NYql::NDqProto::TDqExecutionStats& stats);
-TString AddExecStatsToNewRboPlans(const TVector<const TString>& txPlans, const NKqpProto::TKqpStatsQuery& queryStats, const TString& poolId = "");
+TString SerializeRBOExplainPlan(NJson::TJsonValue txPlan);
+TString SerializeRBOAnalyzePlan(const TVector<const TString>& txPlans, const NKqpProto::TKqpStatsQuery& queryStats, const TString& poolId = "");
 
 } // namespace NKqp
 } // namespace NKikimr

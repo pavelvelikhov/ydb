@@ -333,13 +333,10 @@ void TKqpNewRBOTransformer::AddPlans(std::optional<NJson::TJsonValue> execPlan, 
     Y_ENSURE(!TransformCtx->PlanJson.has_value(), "Only a single explain is supported");
 
     auto planJson = NJson::TJsonValue(NJson::EJsonValueType::JSON_MAP);
-    planJson["Plan"] = execPlan.value();
+    auto plans = NJson::TJsonValue(NJson::EJsonValueType::JSON_ARRAY);
+    plans.AppendValue(execPlan.value());
+    planJson["Plans"] = plans;
     planJson["SimplifiedPlan"] = explainPlan.value();
-
-    auto meta = NJson::TJsonValue(NJson::EJsonValueType::JSON_MAP);
-    meta["version"] = "0.2";
-    meta["type"] = "query";
-    planJson["meta"] = meta;
     
     TransformCtx->PlanJson = planJson;
 }

@@ -4,6 +4,7 @@
 #include <ydb/core/kqp/gateway/kqp_gateway.h>
 #include <ydb/core/kqp/host/kqp_transform.h>
 #include <ydb/core/kqp/opt/kqp_query_plan.h>
+#include <ydb/core/kqp/opt/rbo/kqp_rbo.h>
 
 namespace NKikimr {
 namespace NKqp {
@@ -155,6 +156,7 @@ public:
         Y_UNUSED(typeCtx);
         Y_UNUSED(optCtx);
 
+        // PlanJson is a plan for a transaction, we need to reshape it into a query plan
         if (TransformCtx->PlanJson.has_value()) {
             //FIXME: We set the plan for the last transaction in the query
             auto txId = query.Transactions().Size() - 1;
@@ -165,10 +167,7 @@ public:
             txWriter.WriteJsonValue(&plan, true, PREC_NDIGITS, 17);
             txProto.SetPlan(txWriter.Str());
 
-            NJsonWriter::TBuf writer;
-            //plan = CleanUpPlan(plan);
-            writer.WriteJsonValue(&plan, true, PREC_NDIGITS, 17);
-            queryProto.SetQueryPlan(writer.Str());
+            queryProto.SetQueryPlan(SerializeRBOExplainPlan(plan));
         }
         queryProto.SetQueryAst(KqpExprToPrettyString(*input, ctx));
     }

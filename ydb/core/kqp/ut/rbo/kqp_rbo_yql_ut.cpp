@@ -208,14 +208,14 @@ Y_UNIT_TEST_SUITE(KqpRboYql) {
                     b Int64,
                     c Int64,
                     primary key(a)
-                );
+                ) WITH (STORE = column);
 
                 CREATE TABLE `/Root/t2` (
                     a Int64	NOT NULL,
                     b Int64,
                     c Int64,
                     primary key(a)
-                );
+                ) WITH (STORE = column);
             )";
 
             Y_ENSURE(session.ExecuteSchemeQuery(t).GetValueSync().IsSuccess());
@@ -263,14 +263,14 @@ Y_UNIT_TEST_SUITE(KqpRboYql) {
                     b Int64,
                     c Int64,
                     primary key(a)
-                );
+                ) WITH (STORE = column);
 
                 CREATE TABLE `/Root/t2` (
                     a Int64	NOT NULL,
                     b Int64,
                     c Int64,
                     primary key(a)
-                );
+                ) WITH (STORE = column);
             )";
 
             Y_ENSURE(session.ExecuteSchemeQuery(t).GetValueSync().IsSuccess());
