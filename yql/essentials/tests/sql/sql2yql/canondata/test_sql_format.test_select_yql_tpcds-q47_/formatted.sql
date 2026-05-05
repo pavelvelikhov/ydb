@@ -1,43 +1,73 @@
 /* dqfile can not */
 /* hybridfile can not - missing langver support */
+/* custom error: No such column: avg_monthly_sales */
 PRAGMA YqlSelect = 'force';
 PRAGMA AnsiImplicitCrossJoin;
 
 $v1 = (
     SELECT
-        item.i_category AS i_category,
-        item.i_brand AS i_brand,
-        store.s_store_name AS s_store_name,
-        store.s_company_name AS s_company_name,
-        date_dim.d_year AS d_year,
-        date_dim.d_moy AS d_moy,
+        i_category,
+        i_brand,
+        s_store_name,
+        s_company_name,
+        d_year,
+        d_moy,
         Sum(ss_sales_price) AS sum_sales,
         Avg(Sum(ss_sales_price)) OVER (
             PARTITION BY
-                item.i_category,
-                item.i_brand,
-                store.s_store_name,
-                store.s_company_name,
-                date_dim.d_year
+                i_category,
+                i_brand,
+                s_store_name,
+                s_company_name,
+                d_year
         ) AS avg_monthly_sales,
         Rank() OVER (
             PARTITION BY
-                item.i_category,
-                item.i_brand,
-                store.s_store_name,
-                store.s_company_name
+                i_category,
+                i_brand,
+                s_store_name,
+                s_company_name
             ORDER BY
-                date_dim.d_year,
-                date_dim.d_moy
+                d_year,
+                d_moy
         ) AS rn
-    FROM
-        plato.item
-    ,
-        plato.store_sales
-    ,
-        plato.date_dim
-    ,
-        plato.store
+    FROM (
+        VALUES
+            (1, 'cat1', 'brand1')
+    ) AS item (
+        i_item_sk,
+        i_category,
+        i_brand
+    )
+    , (
+        VALUES
+            (1, 10, 1, 100),
+            (1, 11, 1, 200),
+            (1, 12, 1, 300)
+    ) AS store_sales (
+        ss_item_sk,
+        ss_sold_date_sk,
+        ss_store_sk,
+        ss_sales_price
+    )
+    , (
+        VALUES
+            (10, 1999, 12),
+            (11, 2000, 1),
+            (12, 2001, 1)
+    ) AS date_dim (
+        d_date_sk,
+        d_year,
+        d_moy
+    )
+    , (
+        VALUES
+            (1, 'storeA', 'companyA')
+    ) AS store (
+        s_store_sk,
+        s_store_name,
+        s_company_name
+    )
     WHERE
         ss_item_sk == i_item_sk
         AND ss_sold_date_sk == d_date_sk
@@ -48,22 +78,22 @@ $v1 = (
             OR (d_year == 2000 + 1 AND d_moy == 1)
         )
     GROUP BY
-        item.i_category,
-        item.i_brand,
-        store.s_store_name,
-        store.s_company_name,
-        date_dim.d_year,
-        date_dim.d_moy
+        i_category,
+        i_brand,
+        s_store_name,
+        s_company_name,
+        d_year,
+        d_moy
 );
 
 $v2 = (
     SELECT
-        v1.i_category AS i_category,
-        v1.i_brand AS i_brand,
-        v1.d_year AS d_year,
-        v1.d_moy AS d_moy,
-        v1.avg_monthly_sales AS avg_monthly_sales,
-        v1.sum_sales AS sum_sales,
+        v1.i_category,
+        v1.i_brand,
+        v1.d_year,
+        v1.d_moy,
+        v1.avg_monthly_sales,
+        v1.sum_sales,
         v1_lag.sum_sales AS psum,
         v1_lead.sum_sales AS nsum
     FROM
