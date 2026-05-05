@@ -2769,7 +2769,11 @@ private:
                 }
                 if (!operatorSize && stats.contains("OutputBytes")) {
                     auto outputBytes = stats.at("OutputBytes");
-                    op["A-Size"] = outputBytes.IsMap() ? outputBytes.GetMapSafe().at("Sum").GetDouble() : outputBytes.GetDouble();
+                    double aSize = outputBytes.IsMap() ? outputBytes.GetMapSafe().at("Sum").GetDouble() : outputBytes.GetDouble();
+                    if (fromBroadcast && parentTaskCount) {
+                        aSize /= parentTaskCount;
+                    }
+                    op["A-Size"] = aSize;
                 }
 
                 // cpu usage available for stage only, so assign it to top level operator
