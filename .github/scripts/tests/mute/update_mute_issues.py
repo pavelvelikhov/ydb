@@ -253,7 +253,7 @@ def create_and_add_issue_to_project(title, body, project_id=PROJECT_ID, org_name
         else:
             print(f"Error: Issue {title}: {issue_url}  not modified")
             return result
-    result = {'issue_url': issue_url, 'owner': owner, 'title': title}
+    result = {'issue_url': issue_url, 'issue_id': issue_id, 'owner': owner, 'title': title}
     return result
 
 
