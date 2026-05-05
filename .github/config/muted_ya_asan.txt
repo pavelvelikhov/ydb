@@ -137,6 +137,7 @@ ydb/core/http_proxy/ut/sqs_topic_ut TestSqsTopicHttpProxyCdc.TestSendMessage
 ydb/core/http_proxy/ut/sqs_topic_ut TestSqsTopicHttpProxyCdc.TestSetQueueAttributes
 ydb/core/kafka_proxy/ut KafkaProtocol.BalanceScenarioCdc
 ydb/core/kafka_proxy/ut KafkaProtocol.NativeKafkaBalanceScenario
+ydb/core/kafka_proxy/ut KafkaProtocol.TopicsCompactionGapFromRetention
 ydb/core/kqp/ut/arrow KqpResultSetFormats.ArrowFormat_LargeTable
 ydb/core/kqp/ut/arrow KqpResultSetFormats.ArrowFormat_LargeTable_Limit
 ydb/core/kqp/ut/arrow KqpResultSetFormats.ArrowFormat_SchemaInclusionMode_Always
@@ -238,6 +239,8 @@ ydb/core/load_test/ut unittest.[*/*] chunk
 ydb/core/load_test/ut_ycsb ReadLoad.ShouldReadIterate
 ydb/core/load_test/ut_ycsb ReadLoad.ShouldReadIterateMoreThanRows
 ydb/core/mind/hive/ut TScaleRecommenderTest.BasicTest
+ydb/core/mind/hive/ut TStorageBalanceTest.TestScenario2
+ydb/core/mind/hive/ut unittest.[*/*] chunk
 ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/partition_ut TPartitionDirectTest.BasicWriteReadDirectPBufferFilling
 ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/partition_ut TPartitionDirectTest.RandomWritesDirectPBufferFilling
 ydb/core/nbs/cloud/blockstore/libs/storage/partition_direct/partition_ut TPartitionDirectTest.ShouldRestorePartitionAfterRestart
@@ -256,8 +259,10 @@ ydb/core/security/ut TTicketParserTest.TicketParserPeerNameValidationWithFeature
 ydb/core/security/ut TTicketParserTest.TicketParserPeerNameValidationWithFeatureFlagEnabled
 ydb/core/statistics/service/ut ColumnStatistics.ManyColumns
 ydb/core/statistics/service/ut unittest.[*/*] chunk
+ydb/core/sys_view/ut ShowCreateSystemView.TableChangefeedAfterInitialScan
 ydb/core/sys_view/ut ShowCreateSystemView.TableColumnAlterColumn
 ydb/core/sys_view/ut ShowCreateSystemView.TableDataShardLocalBloomFilterIndex
+ydb/core/sys_view/ut ShowCreateSystemView.TableSystemTableWithEmptyKeyColumnIds
 ydb/core/transfer/ut/functional Transfer.LocalTopic_BigMessage
 ydb/core/transfer/ut/large TransferLarge.Transfer100KM_10P_ColumnTable
 ydb/core/transfer/ut/large TransferLarge.Transfer100KM_10P_LocalRead
