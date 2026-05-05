@@ -85,6 +85,214 @@ void FindPlanNodes(const NJson::TJsonValue& node, const TString& key, std::vecto
     }
 }
 
+bool FindStageAndOpByOpId(NJson::TJsonValue& planNode, int opId, NJson::TJsonValue*& stage, NJson::TJsonValue*& op, int& operatorIdx) {
+
+    if (planNode.IsArray()) {
+        for (auto& item: planNode.GetArraySafe()) {
+            if (FindStageAndOpByOpId(item, opId, stage, op, operatorIdx)) {
+                return true;
+            }
+        }
+        return false;
+    } else if (planNode.IsMap()) {
+        if (planNode.GetMapSafe().contains("Operators")) {
+            auto& operatorArray = planNode.GetMapSafe().at("Operators").GetArraySafe();
+            for (size_t i=0; i<operatorArray.size(); i++) {
+                auto& item = operatorArray.at(i);
+                if (item.GetMapSafe().at("OperatorId").GetInteger() == opId) {
+                    operatorIdx = i;
+                    stage = &planNode;
+                    op = &item;
+                    return true;
+                }
+            }
+        }
+        if (planNode.GetMapSafe().contains("Plans")) {
+            for (auto& item: planNode.GetMapSafe().at("Plans").GetArraySafe()) {
+                if (FindStageAndOpByOpId(item, opId, stage, op, operatorIdx)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    return false;
+}
+
+bool FindConnection(NJson::TJsonValue& planNode, const TString& stageGuid, bool& fromBroadcast, int& parentTaskCount) {
+    if (planNode.IsArray()) {
+        for (auto& item: planNode.GetArraySafe()) {
+            if (FindConnection(item, stageGuid, fromBroadcast, parentTaskCount)) {
+                return true;
+            }
+        }
+        return false;
+    } else if (planNode.IsMap()) {
+        const auto& planMap = planNode.GetMapSafe();
+        if (planMap.contains("PlanNodeType") && planMap.at("PlanNodeType") == "Connection") {
+            const auto& subplan = planMap.at("Plans").GetArraySafe().at(0);
+            if (subplan.GetMapSafe().at("StageGuid") == stageGuid) {
+                fromBroadcast = planMap.at("Node Type") == "Broadcast";
+                if (planMap.contains("Stats") && planMap.at("Stats").GetMapSafe().contains("Tasks")) {
+                    parentTaskCount = planMap.at("Stats").GetMapSafe().at("Tasks").GetIntegerSafe();
+                }
+                return true;
+            }
+        }
+        if (planNode.GetMapSafe().contains("Plans")) {
+            for (auto& item: planNode.GetMapSafe().at("Plans").GetArraySafe()) {
+                if (FindConnection(item, stageGuid, fromBroadcast, parentTaskCount)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    return false;
+}
+
+double ComputeCpuTimes(NJson::TJsonValue& plan) {
+    double currCpuTime = 0;
+
+    if (plan.GetMapSafe().contains("Plans")) {
+        for (auto& p : plan.GetMapSafe().at("Plans").GetArraySafe()) {
+            currCpuTime += ComputeCpuTimes(p);
+        }
+    }
+
+    if (plan.GetMapSafe().contains("Operators")) {
+        auto& ops = plan.GetMapSafe().at("Operators").GetArraySafe();
+        auto& op = ops[0].GetMapSafe();
+        if (op.contains("A-SelfCpu")) {
+            currCpuTime += op["A-SelfCpu"].GetDoubleSafe();
+            op["A-Cpu"] = currCpuTime;
+        }
+    }
+
+    return currCpuTime;
+}
+
+void AddStatsToSimplifiedPlan(NJson::TJsonValue& txPlan) {
+    auto& simplifiedPlan = txPlan.GetMapSafe().at("SimplifiedPlan");
+    auto& execPlan = txPlan.GetMapSafe().at("Plans")[0];
+
+    // Extract all operator ids from SimplifiedPlan and look up stages and operators
+    // in the execution plan
+    std::vector<NJson::TJsonValue> opIds;
+    FindPlanNodes(simplifiedPlan, "OperatorId", opIds);
+
+    for (auto & idNode : opIds) {
+        int execOperatorIdx;
+        int explainOperatorIdx;
+        NJson::TJsonValue* execPlanStage;
+        NJson::TJsonValue* execPlanOp;
+        NJson::TJsonValue* explainPlanStage;
+        NJson::TJsonValue* explainPlanOp;
+
+        Y_ENSURE(FindStageAndOpByOpId(execPlan, idNode.GetIntegerSafe(), execPlanStage, execPlanOp, execOperatorIdx));
+        Y_ENSURE(FindStageAndOpByOpId(simplifiedPlan, idNode.GetIntegerSafe(), explainPlanStage, explainPlanOp, explainOperatorIdx));
+
+        if(!execPlanStage->GetMapSafe().contains("Stats")) {
+            continue;
+        }
+
+        const auto& stats = execPlanStage->GetMapSafe().at("Stats").GetMapSafe();
+        const auto& opName = execPlanOp->GetMapSafe().at("Name").GetStringSafe();
+
+        TString opType;
+        if (opName.Contains("Join")) {
+            opType = "Join";
+        } else if (opName == "Filter") {
+            opType = "Filter";
+        } else if (opName == "Aggregate") {
+            opType = "Aggregation";
+        }
+
+        bool operatorRows = false;
+        bool operatorSize = false;
+
+        if (opName == "TableFullScan" && stats.contains("Table")) {
+            for (auto& opStat : stats.at("Table").GetArraySafe()) {
+                if (opStat.IsMap()) {
+                    auto& opMap = opStat.GetMapSafe();
+                    if (opMap.contains("ReadRows")) {
+                        explainPlanOp->InsertValue("A-Rows", opMap.at("ReadRows").GetMapSafe().at("Sum").GetDouble());
+                        operatorRows = true;
+                    }
+                    if (opMap.contains("ReadBytes")) {
+                        explainPlanOp->InsertValue("A-Size", opMap.at("ReadBytes").GetMapSafe().at("Sum").GetDouble());
+                        operatorSize = true;
+                    }
+                }
+            }
+        } else if(stats.contains("Operator")) {
+            for (auto& opStat : stats.at("Operator").GetArraySafe()) {
+                if (opStat.IsMap()) {
+                    auto& opMap = opStat.GetMapSafe();
+                    if(opMap.contains("Type") && opMap.at("Type").GetStringSafe() == opType && 
+                            opMap.contains("Id") && opMap.at("Id").GetStringSafe() == std::to_string(execOperatorIdx)) {
+
+                        if (opMap.contains("Rows")) {
+                            explainPlanOp->InsertValue("A-Rows", opMap.at("Rows").GetMapSafe().at("Sum").GetDouble());
+                            operatorRows = true;
+                        }
+                        if (opMap.contains("Bytes")) {
+                            explainPlanOp->InsertValue("A-Size", opMap.at("Bytes").GetMapSafe().at("Sum").GetDouble());
+                            operatorSize = true;
+                        }
+                    }
+                    break;
+
+                }
+            }
+        }
+
+        if (execOperatorIdx == 0 && !explainPlanOp->GetMapSafe().contains("A-Rows")) {
+            // Find enclosing connection to process broadcast correctly
+            bool fromBroadcast = false;
+            int parentTaskCount = 0;
+            TString stageGuid = execPlanStage->GetMapSafe().at("StageGuid").GetStringSafe();
+            FindConnection(execPlan, stageGuid, fromBroadcast, parentTaskCount);
+            // top level rows/size have to match stage output
+            if (!operatorRows && stats.contains("OutputRows")) {
+                auto outputRows = stats.at("OutputRows");
+                int aRows = outputRows.IsMap() ? outputRows.GetMapSafe().at("Sum").GetIntegerSafe() : outputRows.GetIntegerSafe();
+    
+                if (fromBroadcast && parentTaskCount && (aRows % parentTaskCount == 0)) {
+                    aRows /= parentTaskCount;
+                }
+                explainPlanOp->InsertValue("A-Rows", aRows);
+            }
+            if (!operatorSize && stats.contains("OutputBytes")) {
+                auto outputBytes = stats.at("OutputBytes");
+                double aSize = outputBytes.IsMap() ? outputBytes.GetMapSafe().at("Sum").GetDouble() : outputBytes.GetDouble();
+                if (fromBroadcast && parentTaskCount) {
+                    aSize /= parentTaskCount;
+                }
+                explainPlanOp->InsertValue("A-Size", aSize);
+            }
+
+            // cpu usage available for stage only, so assign it to top level operator
+            if (stats.contains("CpuTimeUs")) {
+                double opCpuTime;
+
+                auto& cpuTime = stats.at("CpuTimeUs");
+                if (cpuTime.IsMap()) {
+                    opCpuTime = cpuTime.GetMapSafe().at("Max").GetDoubleSafe();
+                } else {
+                    opCpuTime = cpuTime.GetDoubleSafe();
+                }
+
+                explainPlanOp->InsertValue("A-SelfCpu", opCpuTime / 1000.0);
+            }
+        }
+    }
+
+    ComputeCpuTimes(simplifiedPlan);
+}
+
 }
 
 namespace NKikimr {
@@ -252,134 +460,6 @@ TString SerializeRBOExplainPlan(NJson::TJsonValue txPlan) {
     NJsonWriter::TBuf writer;
     writer.WriteJsonValue(&queryPlan, true, PREC_NDIGITS, 17);
     return writer.Str();
-}
-
-bool FindStageAndOpByOpId(NJson::TJsonValue& planNode, int opId, NJson::TJsonValue*& stage, NJson::TJsonValue*& op, int& operatorIdx) {
-
-    if (planNode.IsArray()) {
-        for (auto& item: planNode.GetArraySafe()) {
-            if (FindStageAndOpByOpId(item, opId, stage, op, operatorIdx)) {
-                return true;
-            }
-        }
-        return {};
-    } else if (planNode.IsMap()) {
-        if (planNode.GetMapSafe().contains("Operators")) {
-            auto& operatorArray = planNode.GetMapSafe().at("Operators").GetArraySafe();
-            for (size_t i=0; i<operatorArray.size(); i++) {
-                auto& item = operatorArray.at(i);
-                if (item.GetMapSafe().at("OperatorId").GetInteger() == opId) {
-                    operatorIdx = i;
-                    stage = &planNode;
-                    op = &item;
-                    return true;
-                }
-            }
-        }
-        if (planNode.GetMapSafe().contains("Plans")) {
-            for (auto& item: planNode.GetMapSafe().at("Plans").GetArraySafe()) {
-                if (FindStageAndOpByOpId(item, opId, stage, op, operatorIdx)) {
-                    return true;
-                }
-            }
-            return false;
-        }
-    }
-
-    return false;
-}
-
-void AddStatsToSimplifiedPlan(NJson::TJsonValue& txPlan) {
-    auto& simplifiedPlan = txPlan.GetMapSafe().at("SimplifiedPlan");
-    auto& execPlan = txPlan.GetMapSafe().at("Plans")[0];
-
-    // Extract all operator ids from SimplifiedPlan and look up stages and operators
-    // in the execution plan
-    std::vector<NJson::TJsonValue> opIds;
-    FindPlanNodes(simplifiedPlan, "OperatorId", opIds);
-
-    for (auto & idNode : opIds) {
-        int execOperatorIdx;
-        int explainOperatorIdx;
-        NJson::TJsonValue* execPlanStage;
-        NJson::TJsonValue* execPlanOp;
-        NJson::TJsonValue* explainPlanStage;
-        NJson::TJsonValue* explainPlanOp;
-
-        Y_ENSURE(FindStageAndOpByOpId(execPlan, idNode.GetIntegerSafe(), execPlanStage, execPlanOp, execOperatorIdx));
-        Y_ENSURE(FindStageAndOpByOpId(simplifiedPlan, idNode.GetIntegerSafe(), explainPlanStage, explainPlanOp, explainOperatorIdx));
-
-        if(!execPlanStage->GetMapSafe().contains("Stats")) {
-            continue;
-        }
-
-        const auto& stats = execPlanStage->GetMapSafe().at("Stats").GetMapSafe();
-        const auto& opName = execPlanOp->GetMapSafe().at("Name").GetStringSafe();
-        bool operatorRows = false;
-        bool operatorSize = false;
-
-        if (opName == "TableFullScan" && stats.contains("Table")) {
-            for (auto& opStat : stats.at("Table").GetArraySafe()) {
-                if (opStat.IsMap()) {
-                    auto& opMap = opStat.GetMapSafe();
-                    if (opMap.contains("ReadRows")) {
-                        explainPlanOp->InsertValue("A-Rows", opMap.at("ReadRows").GetMapSafe().at("Sum").GetDouble());
-                        operatorRows = true;
-                    }
-                    if (opMap.contains("ReadBytes")) {
-                        explainPlanOp->InsertValue("A-Size", opMap.at("ReadBytes").GetMapSafe().at("Sum").GetDouble());
-                        operatorSize = true;
-                    }
-                }
-            }
-        } else if(stats.contains("Operator")) {
-            for (auto& opStat : stats.at("Operator").GetArraySafe()) {
-                if (opStat.IsMap()) {
-                    auto& opMap = opStat.GetMapSafe();
-                    if (opMap.contains("Rows")) {
-                        explainPlanOp->InsertValue("A-Rows", opMap.at("Rows").GetMapSafe().at("Sum").GetDouble());
-                        operatorRows = true;
-                    }
-                    if (opMap.contains("Bytes")) {
-                        explainPlanOp->InsertValue("A-Size", opMap.at("Bytes").GetMapSafe().at("Sum").GetDouble());
-                        operatorSize = true;
-                    }
-                    break;
-
-                }
-            }
-        }
-
-        if (execOperatorIdx == 0 && !explainPlanOp->GetMapSafe().contains("A-Rows")) {
-            // top level rows/size have to match stage output
-            if (!operatorRows && stats.contains("OutputRows")) {
-                auto outputRows = stats.at("OutputRows");
-                int aRows = outputRows.IsMap() ? outputRows.GetMapSafe().at("Sum").GetIntegerSafe() : outputRows.GetIntegerSafe();
-                //if (fromBroadcast && parentTaskCount && (aRows % parentTaskCount == 0)) {
-                //    aRows /= parentTaskCount;
-                //}
-                explainPlanOp->InsertValue("A-Rows", aRows);
-            }
-            if (!operatorSize && stats.contains("OutputBytes")) {
-                auto outputBytes = stats.at("OutputBytes");
-                explainPlanOp->InsertValue("A-Size", outputBytes.IsMap() ? outputBytes.GetMapSafe().at("Sum").GetDouble() : outputBytes.GetDouble());
-            }
-
-            // cpu usage available for stage only, so assign it to top level operator
-            if (stats.contains("CpuTimeUs")) {
-                double opCpuTime;
-
-                auto& cpuTime = stats.at("CpuTimeUs");
-                if (cpuTime.IsMap()) {
-                    opCpuTime = cpuTime.GetMapSafe().at("Max").GetDoubleSafe();
-                } else {
-                    opCpuTime = cpuTime.GetDoubleSafe();
-                }
-
-                explainPlanOp->InsertValue("A-SelfCpu", opCpuTime / 1000.0);
-            }
-        }
-    }
 }
 
 TString SerializeRBOAnalyzePlan(const TVector<const TString>& txPlans, const NKqpProto::TKqpStatsQuery& queryStats, const TString& poolId = "") {
