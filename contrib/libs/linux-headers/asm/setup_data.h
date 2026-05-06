@@ -3,9 +3,9 @@
 #elif defined(__aarch64__)
 #error unavailable for arm64
 #elif defined(__powerpc__)
-#include "papr_pdsm_powerpc.h"
+#error unavailable for powerpc
 #elif defined(__i386__) || defined(__x86_64__)
-#error unavailable for x86
+#include "setup_data_x86.h"
 #else
 #error unexpected
 #endif
