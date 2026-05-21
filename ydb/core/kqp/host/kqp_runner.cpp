@@ -455,6 +455,7 @@ private:
                 .AddPostTypeAnnotation(/* forSubgraph */ true)
                 //.AddCommonOptimization()
 
+                .Add(CreateKqpRewriteSublinkTransformer(OptimizeCtx, *typesCtx), "RewriteSelect")
                 .Add(CreateKqpRewriteSelectTransformer(OptimizeCtx, *typesCtx), "RewriteSelect")
                 .Add(CreateKqpNewRBOTransformer(OptimizeCtx, *typesCtx, std::move(rboKqpTypeAnnTransformer),
                     SessionCtx->Tables(), Cluster, sessionCtx->GetDatabase(), ActorSystem, funcRegistry, TransformCtx), "NewRBOTransformer")

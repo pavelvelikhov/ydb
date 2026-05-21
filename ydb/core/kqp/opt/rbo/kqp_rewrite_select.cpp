@@ -12,6 +12,8 @@ using namespace NYql::NDq;
 
 namespace {
 
+THashSet<TString> sqlSelect = {"YqlSelect", "PgSelect"};
+
 struct TAggregationTraits {
     TVector<TExprNode::TPtr> AggTraitsList;
     TVector<TInfoUnit> KeyColumns;
@@ -1146,13 +1148,18 @@ TExprNode::TPtr RewriteSelect(const TExprNode::TPtr& node, TExprContext& ctx, co
                 fromAliases.push_back(TString(alias->Content()));
                 TExprNode::TPtr fromExpr;
 
+                auto childExptType = childExpr->GetTypeAnn();
+                if (childExpr->IsCallable(sqlSelect)){
+                    childExpr = RewriteSelect(childExpr, ctx, typeCtx, kqpCtx, uniqueSourceIdCounter, pgSyntax);
+                }
+
                 if (TKqpOpRoot::Match(childExpr.Get())) {
                     auto opRoot = TKqpOpRoot(childExpr);
 
                     TVector<TExprNode::TPtr> subqueryElements;
 
                     // We need to rename all the IUs in the subquery to reflect the new alias
-                    auto subqueryType = childExpr->GetTypeAnn()->Cast<TListExprType>()->GetItemType()->Cast<TStructExprType>();
+                    auto subqueryType = childExptType->Cast<TListExprType>()->GetItemType()->Cast<TStructExprType>();
                     for (const auto* item : subqueryType->GetItems()) {
                         auto orig = TString(item->GetName());
                         auto unit = TInfoUnit(orig);
@@ -1176,6 +1183,8 @@ TExprNode::TPtr RewriteSelect(const TExprNode::TPtr& node, TExprContext& ctx, co
                     // clang-format on
                 }
                 else {
+                    YQL_CLOG(TRACE, CoreDq) << "Processing: " << childExpr->Content();
+
                     auto readExpr = TKqlReadTableRanges(childExpr);
                     const auto& tableDesc = kqpCtx.Tables->ExistingTable(kqpCtx.Cluster, readExpr.Table().Path());
 

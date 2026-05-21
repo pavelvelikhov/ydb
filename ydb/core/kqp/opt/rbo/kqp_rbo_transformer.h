@@ -19,9 +19,9 @@ using namespace NYql;
 using namespace NYql::NNodes;
 using namespace NOpt;
 
-class TKqpRewriteSelectTransformer : public TSyncTransformerBase {
+class TKqpRewriteSublinkTransformer : public TSyncTransformerBase {
   public:
-    TKqpRewriteSelectTransformer(const TIntrusivePtr<TKqpOptimizeContext> &kqpCtx, TTypeAnnotationContext &typeCtx)
+    TKqpRewriteSublinkTransformer(const TIntrusivePtr<TKqpOptimizeContext> &kqpCtx, TTypeAnnotationContext &typeCtx)
         : TypeCtx(typeCtx), KqpCtx(*kqpCtx), UniqueSourceIdCounter(0) {}
 
     // Main method of the transformer
@@ -31,11 +31,29 @@ class TKqpRewriteSelectTransformer : public TSyncTransformerBase {
   private:
     TTypeAnnotationContext& TypeCtx;
     const TKqpOptimizeContext& KqpCtx;
-    ui64 UniqueSourceIdCounter = 0;
+    ui64 UniqueSourceIdCounter;
 };
 
-TAutoPtr<IGraphTransformer> CreateKqpRewriteSelectTransformer(const TIntrusivePtr<TKqpOptimizeContext> &kqpCtx,
+class TKqpRewriteSelectTransformer : public TSyncTransformerBase {
+  public:
+    TKqpRewriteSelectTransformer(const TIntrusivePtr<TKqpOptimizeContext> &kqpCtx, TTypeAnnotationContext &typeCtx)
+        : TypeCtx(typeCtx), KqpCtx(*kqpCtx), UniqueSourceIdCounter(10000) {}
+
+    // Main method of the transformer
+    IGraphTransformer::TStatus DoTransform(TExprNode::TPtr input, TExprNode::TPtr &output, TExprContext &ctx) final;
+    void Rewind() override;
+
+  private:
+    TTypeAnnotationContext& TypeCtx;
+    const TKqpOptimizeContext& KqpCtx;
+    ui64 UniqueSourceIdCounter;
+};
+
+TAutoPtr<IGraphTransformer> CreateKqpRewriteSublinkTransformer(const TIntrusivePtr<TKqpOptimizeContext> &kqpCtx,
                                                              TTypeAnnotationContext &typeCtx);
+
+TAutoPtr<IGraphTransformer> CreateKqpRewriteSelectTransformer(const TIntrusivePtr<TKqpOptimizeContext> &kqpCtx,
+                                                             TTypeAnnotationContext &typeCtx);                                                             
 
 class TKqpNewRBOTransformer : public TGraphTransformerBase {
 public:

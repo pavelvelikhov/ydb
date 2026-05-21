@@ -2186,6 +2186,10 @@ Y_UNIT_TEST_SUITE(KqpRboYql) {
                            /*queriesWithoutCboCheck=*/{15, 31, 58, 64, 72, 78, 85});
     }
 
+    Y_UNIT_TEST(TPCH_YQL_11) {
+        RunTPC_YqlTest(EBenchType::TPCH, 11, true, true);
+    }
+
     void InsertIntoSchema0(NYdb::NTable::TTableClient& db, std::string tableName, ui32 numRows) {
         NYdb::TValueBuilder rows;
         rows.BeginList();
