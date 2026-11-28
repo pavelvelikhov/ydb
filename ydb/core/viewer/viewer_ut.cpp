@@ -7394,7 +7394,13 @@ Y_UNIT_TEST_SUITE(Viewer) {
 
         response = GetOperation(httpClient, id);
         NJson::ReadJsonTree(response, &jsonCfg, &json, /* throwOnError = */ true);
-        UNIT_ASSERT_EQUAL_C(json["issues"].GetArray().size(), 0, response);
+        // Successful execution may report automatic optimizer fallback, but no
+        // other issue (including unrelated informational diagnostics) is expected.
+        for (const auto& issue : json["issues"].GetArray()) {
+            UNIT_ASSERT_VALUES_EQUAL_C(issue["severity"].GetIntegerSafe(), 3, response);
+            UNIT_ASSERT_VALUES_EQUAL_C(issue["issue_code"].GetIntegerSafe(0), 0, response);
+            UNIT_ASSERT_C(issue["message"].GetStringSafe().StartsWith("Compilation with the new RBO failed: "), response);
+        }
         UNIT_ASSERT_C(json.GetMap().contains("metadata"), response);
         UNIT_ASSERT_C(json["metadata"].GetMap().contains("exec_stats"), response);
         UNIT_ASSERT_C(json["metadata"].GetMap().at("exec_stats").GetMap().contains("process_cpu_time_us"), response);

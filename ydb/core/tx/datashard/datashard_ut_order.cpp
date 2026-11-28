@@ -19,6 +19,7 @@
 #include <util/system/valgrind.h>
 
 #include <yql/essentials/minikql/invoke_builtins/mkql_builtins.h>
+#include <yql/essentials/public/issue/yql_issue_message.h>
 
 namespace NKikimr {
 
@@ -2736,9 +2737,13 @@ void TestLateKqpQueryAfterColumnDrop(bool dataQuery, const TString& query) {
         auto& response = ev->Get()->Record;
         Cerr << response.DebugString() << Endl;
         UNIT_ASSERT_VALUES_EQUAL(response.GetYdbStatus(), Ydb::StatusIds::ABORTED);
-        auto& issue = response.GetResponse().GetQueryIssues(0);
-        UNIT_ASSERT_VALUES_EQUAL(issue.issue_code(), (int) NYql::TIssuesIds::KIKIMR_SCHEME_MISMATCH);
-        UNIT_ASSERT_STRINGS_EQUAL(issue.message(), "Table \'/Root/table-1\' scheme changed.");
+        NYql::TIssues issues;
+        NYql::IssuesFromMessage(response.GetResponse().GetQueryIssues(), issues);
+        issues = NKqp::IssuesWithoutRboFallback(issues);
+        UNIT_ASSERT_C(!issues.Empty(), issues.ToString());
+        const auto& issue = *issues.begin();
+        UNIT_ASSERT_VALUES_EQUAL(issue.GetCode(), static_cast<ui32>(NYql::TIssuesIds::KIKIMR_SCHEME_MISMATCH));
+        UNIT_ASSERT_STRINGS_EQUAL(issue.GetMessage(), "Table '/Root/table-1' scheme changed.");
     }
 }
 

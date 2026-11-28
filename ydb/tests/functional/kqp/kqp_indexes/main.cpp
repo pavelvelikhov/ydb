@@ -142,7 +142,24 @@ Y_UNIT_TEST_SUITE(KqpExtTest)
 
             auto result = client.ExecuteYqlScript(query).GetValueSync();
 
-            UNIT_ASSERT_C(result.GetIssues().Empty(), result.GetIssues().ToString());
+            const auto isFallbackInfo = [](auto&& self, const auto& issue) -> bool {
+                if (static_cast<ui32>(issue.GetSeverity()) != 3) {
+                    return false;
+                }
+                if (issue.GetSubIssues().empty()) {
+                    return issue.GetCode() == 0
+                        && TStringBuf(issue.GetMessage()).StartsWith("Compilation with the new RBO failed: ");
+                }
+                for (const auto& child : issue.GetSubIssues()) {
+                    if (!self(self, *child)) {
+                        return false;
+                    }
+                }
+                return true;
+            };
+            for (const auto& issue : result.GetIssues()) {
+                UNIT_ASSERT_C(isFallbackInfo(isFallbackInfo, issue), result.GetIssues().ToString());
+            }
             UNIT_ASSERT(result.IsSuccess());
         }
     }

@@ -3,10 +3,12 @@
 import json
 import logging
 
+import pytest
 import requests
 
 from ydb.tests.oss.ydb_sdk_import import ydb
 from ydb.tests.library.harness.util import LogLevels
+from ydb.tests.library.harness.kikimr_config import KikimrConfigGenerator
 from ydb.tests.library.common.wait_for import wait_for
 
 
@@ -28,7 +30,19 @@ CLUSTER_CONFIG = dict(
 )
 
 
-def test_basic(ydb_cluster, ydb_database, ydb_client):
+@pytest.fixture(scope="module", params=[False, True], ids=["OldOptimizer", "NewRBO"])
+def new_rbo(request):
+    return request.param
+
+
+@pytest.fixture(scope="module")
+def ydb_configurator(ydb_cluster_configuration, new_rbo):
+    config = KikimrConfigGenerator(**ydb_cluster_configuration)
+    config.yaml_config.setdefault("table_service_config", {})["enable_new_rbo"] = new_rbo
+    return config
+
+
+def test_basic(ydb_cluster, ydb_database, ydb_client, new_rbo):
     logger.info(f"database is {ydb_database}")
     driver = ydb_client(ydb_database)
     driver.wait(timeout=5)
@@ -88,7 +102,11 @@ def test_basic(ydb_cluster, ydb_database, ydb_client):
         session_pool.execute_with_retries(f'ANALYZE {table_name}')
 
     def get_estimate(plan_node):
-        if plan_node.get("Name") == "Filter" and 'int_val' in plan_node.get("Predicate"):
+        expected_operator = "TableFullScan" if new_rbo else "Filter"
+        if plan_node.get("Name") == expected_operator and 'int_val' in plan_node.get("Predicate", ""):
+            if new_rbo:
+                assert plan_node.get("Table") == table_name, plan_node
+                assert plan_node.get("Storage") == "Column", plan_node
             rc = plan_node.get("E-Rows")
             return int(rc) if rc is not None else None
         for p in plan_node.get("Plans", []) + plan_node.get("Operators", []):
@@ -104,6 +122,7 @@ def test_basic(ydb_cluster, ydb_database, ydb_client):
         selectivity_estimate = get_estimate(explain["Plan"])
         logger.debug(f"planner estimate: {selectivity_estimate}")
 
+    assert selectivity_estimate is not None, f"No predicate selectivity estimate found: {explain}"
     expected_count = len([i for i in range(batch_size * batch_count) if int(i / 10) < 10])
     assert selectivity_estimate <= expected_count * 1.5
     assert selectivity_estimate >= expected_count * 0.5

@@ -5,6 +5,7 @@ import codecs
 import yatest.common
 
 from ydb.tests.fq.tools.kqprun import KqpRun
+from ydb.tests.library.common.issues import text_without_rbo_fallback
 
 from yql_utils import get_supported_providers, is_xfail, log, normalize_source_code_path
 
@@ -14,6 +15,7 @@ DATA_PATH = yatest.common.source_path('ydb/library/yql/tests/sql/suites')
 
 
 def sanitize_issues(s):
+    s = text_without_rbo_fallback(s)
     # 2022-08-13T16:11:21Z -> ISOTIME
     # 2022-08-13T16:11:21.549879Z -> ISOTIME
     s = re.sub(r"2\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z", "ISOTIME", s)

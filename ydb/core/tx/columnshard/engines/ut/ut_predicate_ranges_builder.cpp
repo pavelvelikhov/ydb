@@ -107,9 +107,10 @@ Y_UNIT_TEST_SUITE(TColumnShardPredicateRangesBuilder) {
         UNIT_ASSERT_VALUES_EQUAL(pkRange.GetPredicateTo().NumColumns(), 2u);
     }
 
-    Y_UNIT_TEST(QueryServiceAst_And_Execute_RangeByPrefix) {
+    Y_UNIT_TEST_TWIN(QueryServiceAst_And_Execute_RangeByPrefix, NewRbo) {
         NKikimrConfig::TAppConfig appConfig;
         appConfig.MutableColumnShardConfig()->SetAllowNullableColumnsInPK(true);
+        appConfig.MutableTableServiceConfig()->SetEnableNewRBO(NewRbo);
         auto kikimr = NKqp::DefaultKikimrRunner({}, appConfig);
         auto queryClient = kikimr.GetQueryClient();
         auto tableClient = kikimr.GetTableClient();
@@ -163,12 +164,23 @@ Y_UNIT_TEST_SUITE(TColumnShardPredicateRangesBuilder) {
             UNIT_ASSERT_C(!stats.query_ast().empty(), "QueryService explain: query_ast is empty");
 
             const TString ast = stats.query_ast();
-            UNIT_ASSERT_C(ast.Contains("(declare %kqp%tx_result_binding"), ast);
+            if constexpr (NewRbo) {
+                // NewRBO computes prefix ranges in a separate physical transaction.
+                // UsedKeyColumns is a legacy explain prompt, absent from this scan.
+                UNIT_ASSERT_C(ast.Contains("(declare %kqp_physical_tx_param_binding_"), ast);
+                UNIT_ASSERT_C(ast.Contains("RangeFinalize") && ast.Contains("RangeIntersect"), ast);
+                UNIT_ASSERT_C(ast.Contains("RangeMultiply") && ast.Contains("RangeUnion"), ast);
+                UNIT_ASSERT_C(ast.Contains("1776309661000000") && ast.Contains("1776310561000000"), ast);
+                UNIT_ASSERT_C(ast.Contains("\"a1\"") && ast.Contains("SafeCast"), ast);
+                UNIT_ASSERT_C(ast.Contains("KqpTxResultBinding"), ast);
+            } else {
+                UNIT_ASSERT_C(ast.Contains("(declare %kqp%tx_result_binding"), ast);
+                UNIT_ASSERT_C(ast.Contains("UsedKeyColumns"), ast);
+                UNIT_ASSERT_C(ast.Contains("\"timestamp\"") && ast.Contains("\"resource_type\""), ast);
+            }
             UNIT_ASSERT_C(ast.Contains("OptionalType (OptionalType (DataType 'Timestamp"), ast);
             UNIT_ASSERT_C(ast.Contains("OptionalType (OptionalType (DataType 'Utf8"), ast);
             UNIT_ASSERT_C(ast.Contains("KqpBlockReadOlapTableRanges"), ast);
-            UNIT_ASSERT_C(ast.Contains("UsedKeyColumns"), ast);
-            UNIT_ASSERT_C(ast.Contains("\"timestamp\"") && ast.Contains("\"resource_type\""), ast);
             UNIT_ASSERT_C(ast.Contains("Just (Just (Timestamp"), ast);
             UNIT_ASSERT_C(ast.Contains("(Just (Nothing"), ast);
         }

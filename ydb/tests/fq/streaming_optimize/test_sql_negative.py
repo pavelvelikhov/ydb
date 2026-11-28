@@ -5,6 +5,7 @@ import yatest.common
 
 from test_utils import pytest_generate_tests_for_run, get_case_file, get_config
 from ydb.tests.fq.tools.kqprun import KqpRun
+from ydb.tests.library.common.issues import text_without_rbo_fallback
 from yql_utils import get_supported_providers
 
 NEGATIVE_TEMPLATE = ".sqlx"
@@ -26,6 +27,7 @@ def kqp_run(request) -> KqpRun:
 
 
 def sanitize_issues(s):
+    s = text_without_rbo_fallback(s)
     # 2022-08-13T16:11:21Z -> ISOTIME
     # 2022-08-13T16:11:21.549879Z -> ISOTIME
     s = re.sub(r"2\d{3}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z", "ISOTIME", s)

@@ -8,6 +8,7 @@ from ydb._topic_writer.topic_writer import PublicMessage
 from ydb.tests.library.harness.kikimr_runner import KiKiMR
 from ydb.tests.library.harness.kikimr_config import KikimrConfigGenerator
 from ydb.tests.library.common.wait_for import retry_assertions
+from ydb.tests.library.common.issues import issues_without_rbo_fallback
 from ydb.core.protos import msgbus_pb2
 import requests
 from urllib.parse import urlencode
@@ -1440,13 +1441,32 @@ class TestViewer(object):
         return result
 
     @classmethod
+    def normalize_rbo_fallback_issues(cls, value):
+        if isinstance(value, list):
+            return [cls.normalize_rbo_fallback_issues(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        result = {}
+        for key, item in value.items():
+            if key == 'issues' and isinstance(item, list):
+                normalized = issues_without_rbo_fallback(item)
+            else:
+                normalized = cls.normalize_rbo_fallback_issues(item)
+            # Protobuf JSON omits empty issue fields. Preserve existing empty
+            # fields, and drop only those made empty by removing fallback notes.
+            if key == 'issues' and item and not normalized:
+                continue
+            result[key] = normalized
+        return result
+
+    @classmethod
     def test_viewer_query_issues_printing(cls):
         result = cls.get_viewer_db("/viewer/query", {
             'query': '$y = SELECT CAST(1 AS Uint32) + 1 AS Data; SELECT CAST(Data AS List<List<Int32>>) FROM $y',
             'schema': 'multi'
         })
         cls.delete_keys_recursively(result, {'Version', 'version'})
-        return result
+        return cls.normalize_rbo_fallback_issues(result)
 
     @classmethod
     def test_pqrb_tablet(cls):
@@ -1978,7 +1998,7 @@ class TestViewer(object):
 
         result['fetch_error_stream_response'] = cls.normalize_multipart_response(response_fetch_error_stream)
 
-        return result
+        return cls.normalize_rbo_fallback_issues(result)
 
     @classmethod
     def normalize_result_event_stream(cls, result):

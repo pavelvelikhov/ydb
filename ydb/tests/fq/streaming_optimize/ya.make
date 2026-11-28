@@ -31,6 +31,7 @@ DATA(
 
 PEERDIR(
     ydb/tests/fq/tools
+    ydb/tests/library
     yql/essentials/tests/common/test_framework
 )
 

@@ -1,4 +1,5 @@
 #include "ydb_common_ut.h"
+#include <ydb/core/kqp/ut/common/kqp_ut_common.h>
 
 #include <ydb/library/testlib/helpers.h>
 
@@ -232,8 +233,9 @@ Y_UNIT_TEST_SUITE(YdbYqlClient) {
             <main>:3:17: Error: Failed to convert 'Key': String to Optional<Uint32>
         <main>:3:17: Error: Failed to convert input columns types to scheme types, code: 2031
 )___";
-        UNIT_ASSERT_EQUAL(result.GetIssues().Size(), 1);
-        UNIT_ASSERT_NO_DIFF(result.GetIssues().ToString(), ref);
+        const auto issues = NKikimr::NKqp::IssuesWithoutRboFallback(result.GetIssues());
+        UNIT_ASSERT_EQUAL(issues.Size(), 1);
+        UNIT_ASSERT_NO_DIFF(issues.ToString(), ref);
     }
 
     Y_UNIT_TEST(TestYqlSessionClosed) {

@@ -8,6 +8,7 @@ PY_SRCS(
     common/cms.py
     common/generators.py
     common/helpers.py
+    common/issues.py
     common/local_db_scheme.py
     common/msgbus_types.py
     common/protobuf.py
